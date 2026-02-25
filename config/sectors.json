@@ -1,0 +1,74 @@
+[
+  {
+    "key": "groothandel_schoonmaak",
+    "label": "Groothandel Schoonmaak",
+    "queries": [
+      "groothandel schoonmaakproducten",
+      "schoonmaakgroothandel B2B",
+      "reinigingsmiddelen groothandel"
+    ]
+  },
+  {
+    "key": "bouwmaterialen",
+    "label": "Bouwmaterialen",
+    "queries": [
+      "bouwmaterialen groothandel",
+      "bouwgroothandel B2B",
+      "bouwstoffen leverancier"
+    ]
+  },
+  {
+    "key": "technische_groothandel",
+    "label": "Technische Groothandel",
+    "queries": [
+      "technische groothandel",
+      "industriële toeleverancier",
+      "MRO groothandel"
+    ]
+  },
+  {
+    "key": "voedselgroothandel",
+    "label": "Voedsel Groothandel",
+    "queries": [
+      "voedselgroothandel B2B",
+      "foodservice groothandel",
+      "levensmiddelen groothandel"
+    ]
+  },
+  {
+    "key": "verpakkingen",
+    "label": "Verpakkingen",
+    "queries": [
+      "verpakkingsgroothandel",
+      "industriële verpakkingen",
+      "kartonnen dozen groothandel"
+    ]
+  },
+  {
+    "key": "logistiek",
+    "label": "Logistiek & Transport",
+    "queries": [
+      "logistiek dienstverlener",
+      "transport groothandel",
+      "warehouse management"
+    ]
+  },
+  {
+    "key": "metaal_staal",
+    "label": "Metaal & Staal",
+    "queries": [
+      "metaalgroothandel",
+      "staalhandel B2B",
+      "plaatwerk toeleverancier"
+    ]
+  },
+  {
+    "key": "electronica",
+    "label": "Elektronica Groothandel",
+    "queries": [
+      "elektronica groothandel",
+      "elektronicacomponenten leverancier",
+      "elektrotechnisch groothandel"
+    ]
+  }
+]
