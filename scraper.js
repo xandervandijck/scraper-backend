@@ -36,6 +36,13 @@ const NOISE_DOMAINS = new Set([
   'merkandi.nl', 'google.com', 'google.nl', 'google.de', 'google.be',
   'duckduckgo.com', 'bing.com', 'yahoo.com', 'yelp.com', 'trustpilot.com',
   'kvk.nl', 'glassdoor.com', 'indeed.com', 'reddit.com', 'pinterest.com',
+  // Job boards & recruitment aggregators (noise for recruitment use case)
+  'monsterboard.nl', 'nationale-vacaturebank.nl', 'jobbird.com', 'werkzoeken.nl',
+  'careernet.nl', 'intermediair.nl', 'werken.nl', 'vacatures.nl', 'jobrapido.com',
+  'jooble.org', 'totaljobs.com', 'jobs.nl', 'jobtiger.nl', 'uitzendbureau.nl',
+  'tempo-team.nl', 'randstad.nl', 'manpower.nl', 'adecco.nl', 'yacht.nl',
+  'undutchables.nl', 'pagegroup.nl', 'michaelpage.nl', 'heidrick.com',
+  'stepstone.de', 'xing.com', 'monster.de', 'jobware.de', 'stepstone.be',
   'worldwidejanitor.com', 'hillyard.com', 'zogics.com', 'wholesalecleaning.co.uk',
   'shell.nl', 'ikea.com', 'booking.com', 'tripadvisor.com',
   'bol.com', 'coolblue.nl', 'wehkamp.nl',
@@ -355,7 +362,10 @@ export async function scrapeSite(url, { emailValidation = true, deepValidation =
   const emails = rankEmails(extractEmails(allText), domain);
   const phone = extractPhone(allText);
   const { companyName, description, address } = extractCompanyInfo($homepage, url);
-  const { score: erpScore, breakdown: erpBreakdown } = analyzeERPFit(allText, url);
+  // Analyzer: fetchExtra (e.g. recruitment crawls /vacatures), then analyze
+  const { extraText = '', extraData = {} } = await (analyzer.fetchExtra?.(url, fetchPage) ?? Promise.resolve({ extraText: '', extraData: {} }));
+  if (extraText) allText += ' ' + extraText;
+  const analysis = analyzer.analyze({ text: allText, url, domain, extraData, emails });
 
   const primaryEmail = emails[0] ?? null;
 
@@ -386,8 +396,8 @@ export async function scrapeSite(url, { emailValidation = true, deepValidation =
     phone,
     address,
     description,
-    erpScore,
-    erpBreakdown,
+    score: analysis.score,
+    analysisData: analysis.analysis_data,
     emailValid,
     emailValidationScore,
     emailValidationReason,
@@ -404,12 +414,14 @@ export class ScraperEngine {
     emailValidation = true,
     deepValidation = false,
     usePuppeteer = true,
+    analyzer = ERPAnalyzer,
   } = {}) {
     this.concurrency = concurrency;
     this.minScore = minScore;
     this.emailValidation = emailValidation;
     this.deepValidation = deepValidation;
     this.usePuppeteer = usePuppeteer;
+    this.analyzer = analyzer;
     this.limiter = new ConcurrencyLimiter(concurrency);
     this.stopRequested = false;
     this.leads = [];
@@ -458,6 +470,7 @@ export class ScraperEngine {
           const result = await scrapeSite(url, {
             emailValidation: this.emailValidation,
             deepValidation: this.deepValidation,
+            analyzer: this.analyzer,
           });
 
           if (!result) {
@@ -465,15 +478,15 @@ export class ScraperEngine {
             return;
           }
 
-          if (result.erpScore < this.minScore) {
-            onLog?.('info', `  Skip ${domain}: score ${result.erpScore} < ${this.minScore}`);
+          if (result.score < this.minScore) {
+            onLog?.('info', `  Skip ${domain}: score ${result.score} < ${this.minScore}`);
             return;
           }
 
           const lead = { ...result, sector, country };
           this.leads.push(lead);
           onLeadFound?.(lead);
-          onLog?.('success', `  Lead: ${result.companyName} (${domain}) — ERP: ${result.erpScore}`);
+          onLog?.('success', `  Lead: ${result.companyName} (${domain}) — score: ${result.score}`);
         } catch (err) {
           onLog?.('warn', `  Fout bij ${domain}: ${err.message}`);
           onError?.();

@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db.js';
 import { authenticate, verifyWorkspace, asyncHandler } from '../middleware/authMiddleware.js';
 import { startScrapeJob, isJobRunning } from '../services/scrapeService.js';
+import { VALID_USE_CASES } from '../analyzers/analyzerFactory.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -29,11 +30,14 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 router.post('/', verifyWorkspace, asyncHandler(async (req, res) => {
-  const { name, targetLeads = 100 } = req.body;
+  const { name, targetLeads = 100, use_case = 'erp' } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  if (!VALID_USE_CASES.includes(use_case)) {
+    return res.status(400).json({ error: `use_case must be one of: ${VALID_USE_CASES.join(', ')}` });
+  }
   const { rows } = await query(
-    'INSERT INTO lead_lists (workspace_id, name, target_leads) VALUES ($1,$2,$3) RETURNING *',
-    [req.workspaceId, name.trim(), targetLeads]
+    'INSERT INTO lead_lists (workspace_id, name, target_leads, use_case) VALUES ($1,$2,$3,$4) RETURNING *',
+    [req.workspaceId, name.trim(), targetLeads, use_case]
   );
   res.status(201).json(rows[0]);
 }));

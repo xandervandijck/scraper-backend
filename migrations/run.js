@@ -22,10 +22,12 @@ const pool = new Pool({
 });
 
 async function run() {
-  const sql = readFileSync(path.join(__dirname, '001_initial.sql'), 'utf-8');
-  console.log('Running migration 001_initial.sql...');
-  await pool.query(sql);
-  console.log('✓ Migration complete');
+  for (const file of ['001_initial.sql', '002_use_case.sql']) {
+    const sql = readFileSync(path.join(__dirname, file), 'utf-8');
+    console.log(`Running migration ${file}...`);
+    await pool.query(sql);
+    console.log(`✓ ${file} complete`);
+  }
   await pool.end();
 }
 

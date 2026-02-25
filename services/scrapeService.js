@@ -1,8 +1,8 @@
 import { ScraperEngine } from '../scraper.js';
-import { generateQueries } from '../queryGenerator.js';
 import { insertLeadDeduped } from './leadService.js';
 import { createSession, updateSession } from './sessionService.js';
-import { withTransaction } from '../db.js';
+import { withTransaction, query } from '../db.js';
+import { getAnalyzer } from '../analyzers/analyzerFactory.js';
 
 // Per-workspace active jobs — enforces one job per workspace
 const activeJobs = new Map();
@@ -14,10 +14,10 @@ export async function startScrapeJob({ workspaceId, listId, config, broadcast })
     throw new Error('A job is already running for this workspace');
   }
 
-  const queries = generateQueries({
-    sectorKeys: config.sectorKeys ?? [],
-    countryKeys: config.countryKeys ?? [],
-  });
+  const { rows: listRows } = await query('SELECT use_case FROM lead_lists WHERE id=$1', [listId]);
+  const useCase = listRows[0]?.use_case ?? 'erp';
+  const analyzer = getAnalyzer(useCase);
+  const queries = analyzer.generateQueries(config);
 
   if (!queries.length) throw new Error('No queries generated — check sectorKeys/countryKeys');
 
@@ -28,6 +28,7 @@ export async function startScrapeJob({ workspaceId, listId, config, broadcast })
     emailValidation: config.emailValidation ?? true,
     deepValidation: config.deepValidation ?? false,
     usePuppeteer: config.usePuppeteer ?? true,
+    analyzer,
   });
 
   const counters = { leadsFound: 0, duplicatesSkipped: 0, errorsCount: 0 };
@@ -36,13 +37,13 @@ export async function startScrapeJob({ workspaceId, listId, config, broadcast })
   broadcast({ type: 'job_started', sessionId, queries: queries.length });
 
   // Run async — do not await
-  _runJob({ engine, queries, workspaceId, listId, sessionId, counters, config, broadcast })
+  _runJob({ engine, queries, workspaceId, listId, sessionId, counters, config, broadcast, useCase })
     .finally(() => activeJobs.delete(workspaceId));
 
   return sessionId;
 }
 
-async function _runJob({ engine, queries, workspaceId, listId, sessionId, counters, config, broadcast }) {
+async function _runJob({ engine, queries, workspaceId, listId, sessionId, counters, config, broadcast, useCase }) {
   const targetLeads = config.targetLeads ?? 1000;
   try {
     for (const querySpec of queries) {
@@ -57,11 +58,11 @@ async function _runJob({ engine, queries, workspaceId, listId, sessionId, counte
         onLeadFound: async (lead) => {
           try {
             const result = await withTransaction((client) =>
-              insertLeadDeduped(client, lead, workspaceId, listId)
+              insertLeadDeduped(client, { ...lead, useCase }, workspaceId, listId)
             );
             if (result.inserted) {
               counters.leadsFound++;
-              broadcast({ type: 'lead', lead: { ...lead, id: result.id } });
+              broadcast({ type: 'lead', lead: { ...lead, id: result.id, useCase } });
             } else {
               counters.duplicatesSkipped++;
             }

@@ -1,11 +1,11 @@
 /**
  * PostgreSQL connection pool (Neon serverless compatible).
  */
-import pkg from 'pg';
+import pkg from "pg";
 const { Pool } = pkg;
 
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+  throw new Error("DATABASE_URL environment variable is required");
 }
 
 const pool = new Pool({
@@ -16,8 +16,8 @@ const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 });
 
-pool.on('error', (err) => {
-  console.error('[DB] Unexpected pool error:', err.message);
+pool.on("error", (err) => {
+  console.error("[DB] Unexpected pool error:", err.message);
 });
 
 /** Execute a parameterised query. */
@@ -26,10 +26,16 @@ export async function query(text, params) {
   try {
     const res = await pool.query(text, params);
     const dur = Date.now() - start;
-    if (dur > 1000) console.warn(`[DB] Slow query (${dur}ms):`, text.slice(0, 80));
+    if (dur > 1000)
+      console.warn(`[DB] Slow query (${dur}ms):`, text.slice(0, 80));
     return res;
   } catch (err) {
-    console.error('[DB] Query error:', err.message, '\nSQL:', text.slice(0, 100));
+    console.error(
+      "[DB] Query error:",
+      err.message,
+      "\nSQL:",
+      text.slice(0, 100),
+    );
     throw err;
   }
 }
@@ -38,12 +44,12 @@ export async function query(text, params) {
 export async function withTransaction(fn) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     const result = await fn(client);
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();

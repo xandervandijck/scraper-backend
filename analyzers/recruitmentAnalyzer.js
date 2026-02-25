@@ -14,9 +14,7 @@ import * as cheerio from 'cheerio';
 
 // ─── Vacancy page patterns ────────────────────────────────────────────────────
 const VACANCY_PATH_PATTERNS = [
-  /\/(vacatures?|vacature|jobs?|careers?|werken-bij|werken_bij|werkenbij|
-    stellenangebote|stellen|karriere|jobangebote|hiring|join-us|join_us|
-    offres-emploi|emploi)[/-]?(\?.*)?$/i,
+  /\/(vacatures?|vacature|jobs?|careers?|werken-bij|werken_bij|werkenbij|stellenangebote|stellen|karriere|jobangebote|hiring|join-us|join_us|offres-emploi|emploi)[/-]?(\?.*)?$/i,
 ];
 
 // ─── ATS platforms ────────────────────────────────────────────────────────────
@@ -55,6 +53,10 @@ const JOB_CATEGORY_MAP = {
   Techniek:      ['monteur', 'technisch', 'installateur', 'service engineer', 'werktuigbouwkunde', 'mechatronica'],
   Productie:     ['productiemedewerker', 'operator', 'assemblagemedewerker', 'kwaliteitscontrole', 'produktie'],
   Management:    ['manager', 'directeur', 'teamleider', 'hoofd', 'leidinggevende'],
+  Horeca:        ['kok', 'chef', 'kelner', 'bediening', 'barista', 'receptionist', 'hotelmedewerker', 'catering', 'horeca'],
+  Zorg:          ['verpleegkundige', 'verzorgende', 'tandarts', 'fysiotherapeut', 'huisarts', 'apotheker', 'doktersassistent', 'zorgmedewerker', 'zorg'],
+  Retail:        ['verkoopmedewerker', 'kassamedewerker', 'winkelmedewerker', 'filiaalmanager', 'retail'],
+  Leisure:       ['instructeur', 'trainer', 'begeleider', 'animator', 'evenement', 'sportschool', 'wellness'],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -123,9 +125,62 @@ function detectHREmail(emails = [], text = '') {
   return hrNearby?.[1] ?? null;
 }
 
+// ─── Sector query map (module-level so it can be exposed as sectors list) ────
+
+const RECRUITMENT_QUERIES = {
+  // ── B2B / industrie ──────────────────────────────────────────────────────
+  logistiek:           ['logistiek bedrijf "werken bij"', 'transportbedrijf "werken bij"', 'magazijn bedrijf vacatures'],
+  bouwmaterialen:      ['bouwbedrijf "werken bij"', 'aannemersbedrijf vacatures', 'bouwmaterialen groothandel "werken bij"'],
+  voedsel_groothandel: ['voedsel groothandel "werken bij"', 'food bedrijf vacatures'],
+  metaal_staal:        ['metaalbedrijf "werken bij"', 'staalhandel vacatures'],
+  chemie:              ['chemiebedrijf "werken bij"', 'farmaceutisch bedrijf vacatures'],
+  techniek:            ['technisch bedrijf "werken bij"', 'installatiebedrijf vacatures'],
+  schoonmaak:          ['schoonmaakbedrijf "werken bij"', 'facilitair bedrijf vacatures'],
+  papier_verpakking:   ['verpakkingsbedrijf "werken bij"', 'papiergroothandel vacatures'],
+
+  // ── Horeca ───────────────────────────────────────────────────────────────
+  horeca:              ['restaurant "werken bij"', 'hotel "werken bij"', 'café "werken bij"', 'cateringbedrijf vacatures'],
+
+  // ── Leisure / vrije tijd ─────────────────────────────────────────────────
+  leisure:             ['sportschool "werken bij"', 'fitnesscentrum vacatures', 'pretpark "werken bij"', 'bioscoop vacatures', 'theater "werken bij"', 'wellness "werken bij"'],
+
+  // ── Zorg / health ────────────────────────────────────────────────────────
+  zorg:                ['tandartspraktijk "werken bij"', 'fysiotherapiepraktijk vacatures', 'huisartsenpraktijk "werken bij"', 'apotheek vacatures', 'dierenartspraktijk "werken bij"', 'opticiën vacatures'],
+
+  // ── Retail / detailhandel ────────────────────────────────────────────────
+  retail:              ['winkel "werken bij"', 'supermarkt "werken bij"', 'kledingwinkel vacatures', 'bouwmarkt "werken bij"', 'kapper "werken bij"'],
+
+  // ── Lokaal / diversen ────────────────────────────────────────────────────
+  lokaal:              ['garage "werken bij"', 'autogarage vacatures', 'wasserij "werken bij"', 'drukkerij vacatures', 'evenementenbureau "werken bij"'],
+};
+
+// Human-readable labels for the frontend ConfigPanel
+const SECTOR_LABELS = {
+  logistiek:           'Logistiek & Transport',
+  bouwmaterialen:      'Bouw & Materialen',
+  voedsel_groothandel: 'Voedsel Groothandel',
+  metaal_staal:        'Metaal & Staal',
+  chemie:              'Chemie & Farma',
+  techniek:            'Techniek & Industrie',
+  schoonmaak:          'Schoonmaak & Facilitair',
+  papier_verpakking:   'Papier & Verpakking',
+  horeca:              'Horeca (restaurant, hotel, café)',
+  leisure:             'Leisure (sport, wellness, theater)',
+  zorg:                'Zorg & Health (tandarts, fysiotherapie)',
+  retail:              'Retail & Detailhandel',
+  lokaal:              'Lokaal & Diversen (garage, kapper)',
+};
+
 // ─── Main exports ─────────────────────────────────────────────────────────────
 
 const RecruitmentAnalyzer = {
+  /** Available sectors for the ConfigPanel */
+  sectors: Object.entries(RECRUITMENT_QUERIES).map(([key, queries]) => ({
+    key,
+    label: SECTOR_LABELS[key] ?? key,
+    queries,
+  })),
+
   /**
    * Fetches vacancy pages for extra text + ATS detection.
    * Called by the scraper BEFORE analyze(), so the text is enriched.
@@ -220,17 +275,6 @@ const RecruitmentAnalyzer = {
   },
 
   generateQueries(config) {
-    const RECRUITMENT_QUERIES = {
-      logistiek:         ['logistiek bedrijf vacatures', 'transport bedrijf personeel gezocht', 'magazijn bedrijf wij zoeken'],
-      bouwmaterialen:    ['bouwbedrijf vacatures', 'aannemersbedrijf personeel', 'bouwmaterialen groothandel vacatures'],
-      voedsel_groothandel: ['voedsel groothandel vacatures', 'food bedrijf personeel gezocht'],
-      metaal_staal:      ['metaalbedrijf vacatures', 'staalhandel personeel gezocht'],
-      chemie:            ['chemiebedrijf vacatures', 'farmaceutisch bedrijf personeel'],
-      techniek:          ['technisch bedrijf vacatures', 'industrieel bedrijf personeel gezocht'],
-      schoonmaak:        ['schoonmaakbedrijf vacatures', 'facilitair bedrijf personeel'],
-      papier_verpakking: ['verpakkingsbedrijf vacatures', 'papiergroothandel personeel'],
-    };
-
     const COUNTRY_SUFFIX = { NL: 'Nederland', BE: 'België', DE: 'Deutschland' };
 
     const sectorKeys = config.sectorKeys?.length
