@@ -351,7 +351,8 @@ async function extractURLs(page, maxResults) {
  * @param {{
  *   maxResults?: number,
  *   onProgress?: Function,
- *   retryCount?: number
+ *   retryCount?: number,
+ *   isStopped?: () => boolean
  * }} options
  * @returns {Promise<{ urls: string[], blocked: boolean, source: string }>}
  */
@@ -359,10 +360,15 @@ export async function searchWithPuppeteer(query, {
   maxResults = 15,
   onProgress,
   retryCount = 0,
+  isStopped = () => false,
 } = {}) {
   let page;
   try {
+    if (isStopped()) return { urls: [], blocked: false, source: 'puppeteer' };
+
     page = await browserManager.getPage();
+
+    if (isStopped()) { browserManager.releasePage(page); page = null; return { urls: [], blocked: false, source: 'puppeteer' }; }
 
     const searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&kl=nl-nl&ia=web`;
 
@@ -371,34 +377,44 @@ export async function searchWithPuppeteer(query, {
       timeout: 25_000,
     });
 
+    if (isStopped()) return { urls: [], blocked: false, source: 'puppeteer' };
+
     // Block detection
     const blocked = await detectBlock(page);
     if (blocked) {
       browserManager.recordBlock();
       const delay = 8_000 + retryCount * 12_000;
 
-      if (retryCount < 2) {
+      if (retryCount < 2 && !isStopped()) {
         console.warn(`[Puppeteer] Blocked on "${query}", retry ${retryCount + 1} after ${delay}ms`);
         browserManager.releasePage(page);
         page = null;
         await sleep(delay);
-        return searchWithPuppeteer(query, { maxResults, onProgress, retryCount: retryCount + 1 });
+        return searchWithPuppeteer(query, { maxResults, onProgress, retryCount: retryCount + 1, isStopped });
       }
 
       onProgress?.({ query, resultsFound: 0, blocked: true, source: 'puppeteer' });
       return { urls: [], blocked: true, source: 'puppeteer' };
     }
 
+    if (isStopped()) return { urls: [], blocked: false, source: 'puppeteer' };
+
     // Wait for content to render
     await waitForResults(page);
+
+    if (isStopped()) return { urls: [], blocked: false, source: 'puppeteer' };
 
     const urls = await extractURLs(page, maxResults);
 
     browserManager.recordSuccess();
     onProgress?.({ query, resultsFound: urls.length, blocked: false, source: 'puppeteer' });
 
-    // Adaptive delay before next search
-    await sleep(browserManager.currentDelay + Math.random() * 500);
+    // Adaptive delay before next search (interruptible)
+    const delayMs = browserManager.currentDelay + Math.random() * 500;
+    const step = 200;
+    for (let elapsed = 0; elapsed < delayMs && !isStopped(); elapsed += step) {
+      await sleep(Math.min(step, delayMs - elapsed));
+    }
 
     return { urls, blocked: false, source: 'puppeteer' };
   } catch (err) {

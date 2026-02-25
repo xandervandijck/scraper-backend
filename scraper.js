@@ -133,10 +133,10 @@ class ConcurrencyLimiter {
  * Primary: Puppeteer
  * Fallback: axios POST to DDG HTML endpoint (used when usePuppeteer=false or on error)
  */
-export async function searchDDG(query, { maxResults = 15, usePuppeteer = true, onProgress } = {}) {
+export async function searchDDG(query, { maxResults = 15, usePuppeteer = true, onProgress, isStopped } = {}) {
   if (usePuppeteer) {
     try {
-      const result = await searchWithPuppeteer(query, { maxResults, onProgress });
+      const result = await searchWithPuppeteer(query, { maxResults, onProgress, isStopped });
       if (result.urls.length > 0 || result.blocked) return result.urls;
       // Zero results but not blocked: fall through to HTTP fallback
     } catch (err) {
@@ -442,6 +442,7 @@ export class ScraperEngine {
       maxResults: 20,
       usePuppeteer: this.usePuppeteer,
       onProgress: (info) => onSearchProgress?.(info),
+      isStopped: () => this.stopRequested,
     });
 
     onLog?.('info', `  → ${urls.length} URLs gevonden`);
