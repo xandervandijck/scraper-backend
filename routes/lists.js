@@ -42,6 +42,26 @@ router.post('/', verifyWorkspace, asyncHandler(async (req, res) => {
   res.status(201).json(rows[0]);
 }));
 
+/** DELETE /lists/:id — delete list + all its leads (CASCADE) */
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const { workspaceId } = req.query;
+  if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' });
+
+  const { rows: ws } = await query(
+    'SELECT id FROM workspaces WHERE id = $1 AND user_id = $2',
+    [workspaceId, req.userId]
+  );
+  if (!ws.length) return res.status(403).json({ error: 'Workspace not found' });
+
+  const { rows } = await query(
+    'DELETE FROM lead_lists WHERE id = $1 AND workspace_id = $2 RETURNING id',
+    [req.params.id, workspaceId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'List not found' });
+
+  res.json({ ok: true });
+}));
+
 /** POST /lists/:id/extend — run more scraping into an existing list */
 router.post('/:id/extend', asyncHandler(async (req, res) => {
   const { workspaceId, config = {} } = req.body;

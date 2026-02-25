@@ -125,6 +125,48 @@ function detectHREmail(emails = [], text = '') {
   return hrNearby?.[1] ?? null;
 }
 
+// Headings to skip when extracting vacancy titles — generic page sections
+const SKIP_TITLE = /^(over ons|contact|home|homepage|menu|nieuws|blog|team|service|producten|about|news|jobs|vacatures|werken bij|careers|solliciteer|apply|onze|the |ons |our |wat |wie |hoe |why |when |more |lees |read |meer |alles|frequently|faq|privacy|cookie|partners|volg ons|nieuwsbrief|schrijf je in|meer informatie|bekijk|volg|download|inschrijven|onze diensten|contact op)/i;
+
+function extractVacancyTitles($page) {
+  const titles = [];
+  const seen = new Set();
+
+  // 1. Structured vacancy containers — most reliable
+  const containerSelectors = [
+    '[class*="vacature"]', '[class*="vacancy"]', '[class*="job-item"]',
+    '[class*="job-card"]', '[class*="position"]', '[class*="opening"]',
+    '[class*="listing-item"]', '[class*="career-item"]',
+  ];
+  for (const sel of containerSelectors) {
+    $page(sel).each((_, el) => {
+      const heading = $page(el).find('h1,h2,h3,h4,a').first().text().trim();
+      if (heading && heading.length > 3 && heading.length < 100 && !seen.has(heading.toLowerCase())) {
+        seen.add(heading.toLowerCase());
+        titles.push(heading);
+      }
+    });
+    if (titles.length >= 3) break;
+  }
+
+  // 2. Fallback: scan all h2/h3/h4 headings on the page
+  if (titles.length < 2) {
+    $page('h2, h3, h4').each((_, el) => {
+      const text = $page(el).text().trim();
+      if (
+        text.length > 3 && text.length < 100 &&
+        !SKIP_TITLE.test(text) &&
+        !seen.has(text.toLowerCase())
+      ) {
+        seen.add(text.toLowerCase());
+        titles.push(text);
+      }
+    });
+  }
+
+  return titles.slice(0, 10);
+}
+
 // ─── Sector query map (module-level so it can be exposed as sectors list) ────
 
 const RECRUITMENT_QUERIES = {
@@ -139,19 +181,19 @@ const RECRUITMENT_QUERIES = {
   papier_verpakking:   ['verpakkingsbedrijf "werken bij"', 'papiergroothandel vacatures'],
 
   // ── Horeca ───────────────────────────────────────────────────────────────
-  horeca:              ['restaurant "werken bij"', 'hotel "werken bij"', 'café "werken bij"', 'cateringbedrijf vacatures'],
+  horeca:              ['restaurant vacatures', 'hotel personeel gezocht', 'café vacatures medewerker', 'cateringbedrijf vacatures', 'horeca bedrijf wij zoeken'],
 
   // ── Leisure / vrije tijd ─────────────────────────────────────────────────
-  leisure:             ['sportschool "werken bij"', 'fitnesscentrum vacatures', 'pretpark "werken bij"', 'bioscoop vacatures', 'theater "werken bij"', 'wellness "werken bij"'],
+  leisure:             ['sportschool vacatures', 'fitnesscentrum medewerker gezocht', 'wellness vacatures', 'theater vacatures', 'pretpark personeel', 'bioscoop vacatures'],
 
   // ── Zorg / health ────────────────────────────────────────────────────────
-  zorg:                ['tandartspraktijk "werken bij"', 'fysiotherapiepraktijk vacatures', 'huisartsenpraktijk "werken bij"', 'apotheek vacatures', 'dierenartspraktijk "werken bij"', 'opticiën vacatures'],
+  zorg:                ['tandartspraktijk vacatures', 'fysiotherapiepraktijk medewerker', 'huisartsenpraktijk vacatures', 'apotheek vacatures', 'dierenarts vacatures', 'opticiën medewerker gezocht'],
 
   // ── Retail / detailhandel ────────────────────────────────────────────────
-  retail:              ['winkel "werken bij"', 'supermarkt "werken bij"', 'kledingwinkel vacatures', 'bouwmarkt "werken bij"', 'kapper "werken bij"'],
+  retail:              ['winkel vacatures', 'supermarkt medewerker gezocht', 'kledingwinkel vacatures', 'kapper vacatures', 'bouwmarkt personeel gezocht'],
 
   // ── Lokaal / diversen ────────────────────────────────────────────────────
-  lokaal:              ['garage "werken bij"', 'autogarage vacatures', 'wasserij "werken bij"', 'drukkerij vacatures', 'evenementenbureau "werken bij"'],
+  lokaal:              ['garage vacatures', 'autogarage medewerker', 'wasserij vacatures', 'drukkerij vacatures', 'evenementenbureau personeel'],
 };
 
 // Human-readable labels for the frontend ConfigPanel
@@ -203,6 +245,7 @@ const RecruitmentAnalyzer = {
 
     extraData.jobPageUrl = vacancyLinks[0];
 
+    extraData.vacancyTitles = [];
     for (const link of vacancyLinks) {
       try {
         const html = await fetchFn(link, 10_000);
@@ -210,7 +253,8 @@ const RecruitmentAnalyzer = {
         const text = $page('body').text().replace(/\s+/g, ' ');
         extraText += ' ' + text;
         if (!extraData.atsDetected) extraData.atsDetected = detectATS(html);
-        extraData.rawHtml += html.slice(0, 20_000); // cap
+        extraData.rawHtml += html.slice(0, 20_000);
+        extraData.vacancyTitles.push(...extractVacancyTitles($page));
       } catch {}
     }
 
@@ -259,6 +303,7 @@ const RecruitmentAnalyzer = {
         score,
         vacanciesCount:   rawCount,
         jobPageUrl:       extraData.jobPageUrl ?? null,
+        vacancyTitles:    [...new Set(extraData.vacancyTitles ?? [])].slice(0, 10),
         jobCategories,
         hrEmail:          hrEmail ?? null,
         atsDetected:      extraData.atsDetected ?? null,
