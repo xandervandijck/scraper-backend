@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate, asyncHandler } from '../middleware/authMiddleware.js';
-import { startScrapeJob, stopJob, getJobStatus, isJobRunning } from '../services/scrapeService.js';
+import { startScrapeJob, stopJob, forceStopJob, getJobStatus, isJobRunning } from '../services/scrapeService.js';
 import { getSessions } from '../services/sessionService.js';
 import { query } from '../db.js';
 
@@ -25,10 +25,15 @@ router.post('/start', asyncHandler(async (req, res) => {
 }));
 
 router.post('/stop', asyncHandler(async (req, res) => {
-  const { workspaceId } = req.body;
+  const { workspaceId, force = false } = req.body;
   if (!workspaceId) return res.status(400).json({ error: 'workspaceId required' });
-  const stopped = stopJob(workspaceId);
-  res.json({ ok: stopped });
+  if (force) {
+    forceStopJob(workspaceId);
+    res.json({ ok: true, forced: true });
+  } else {
+    const stopped = stopJob(workspaceId);
+    res.json({ ok: stopped });
+  }
 }));
 
 router.get('/status', asyncHandler(async (req, res) => {

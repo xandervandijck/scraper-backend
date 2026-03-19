@@ -100,6 +100,12 @@ export function stopJob(workspaceId) {
   return true;
 }
 
+export function forceStopJob(workspaceId) {
+  const job = activeJobs.get(workspaceId);
+  if (job) job.engine.requestStop();
+  activeJobs.delete(workspaceId);
+}
+
 export function getJobStatus(workspaceId) {
   const job = activeJobs.get(workspaceId);
   return job ? { sessionId: job.sessionId, counters: job.counters } : null;

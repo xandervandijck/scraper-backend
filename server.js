@@ -395,10 +395,18 @@ async function shutdown() {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`ERP Lead Engine backend running on http://localhost:${PORT}`);
   console.log(`WebSocket available on ws://localhost:${PORT}`);
   cache.startCleanup();
+  // Mark any sessions left as 'running' from a previous crash as 'error'
+  try {
+    const { query: dbQuery } = await import('./db.js');
+    await dbQuery(`UPDATE scrape_sessions SET status='error', finished_at=NOW() WHERE status='running'`);
+    console.log('[Server] Cleaned up stale running sessions');
+  } catch (e) {
+    console.warn('[Server] Could not clean up stale sessions:', e.message);
+  }
 });
 
 export default app;

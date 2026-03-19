@@ -210,10 +210,12 @@ class BrowserManager {
   }
 
   async _launch() {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: LAUNCH_ARGS,
-    });
+    const browserlessToken = process.env.BROWSERLESS_TOKEN;
+    const browser = browserlessToken
+      ? await puppeteer.connect({
+          browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}`,
+        })
+      : await puppeteer.launch({ headless: true, args: LAUNCH_ARGS });
 
     browser.on('disconnected', () => {
       console.warn('[Puppeteer] Browser disconnected, will relaunch on next use');
