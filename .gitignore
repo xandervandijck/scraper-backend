@@ -70,6 +70,11 @@ strapi/.strapi-updater.json
 # Gatsby files
 .cache/
 public
+!public/
+public/*
+!public/uploads/
+public/uploads/*
+!public/uploads/.gitkeep
 
 # Vuepress build output
 .vuepress/dist
