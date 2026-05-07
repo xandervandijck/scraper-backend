@@ -19,7 +19,7 @@ const NOISE_DOMAINS = new Set([
   'youtube.com', 'wikipedia.org', 'amazon.com', 'amazon.de', 'amazon.nl',
   'ebay.com', 'ebay.nl', 'google.com', 'google.nl', 'google.de', 'google.be',
   'duckduckgo.com', 'bing.com', 'yahoo.com', 'yelp.com', 'trustpilot.com',
-  'kvk.nl', 'glassdoor.com', 'indeed.com', 'reddit.com', 'pinterest.com',
+  'kvk.nl', 'glassdoor.com', 'reddit.com', 'pinterest.com',
   'shopify.com', 'indiamart.com', 'uline.com', 'europages.co.uk', 'ensun.io',
   'kompass.com', 'gamma.nl', 'makro.nl', 'staples.nl', 'lyreco.com',
   'bidfood.nl', 'merkandi.nl', 'shell.nl', 'ikea.com', 'bol.com',
@@ -27,12 +27,10 @@ const NOISE_DOMAINS = new Set([
   'substack.com', 'medium.com', 'wordpress.com', 'wix.com', 'squarespace.com',
   'apple.com', 'microsoft.com', 'play.google.com',
   'github.com', 'stackoverflow.com', 'npmjs.com',
-  'horeca-job.nl', 'horecajob.nl', 'nationalehorecagids.nl', 'werkenbijappel.nl',
-  'werkenbijvitam.nl', 'werkenbij.nl', 'bijbaan.nl', 'studentjob.nl',
-  'youngcapital.nl', 'jobalert.nl', 'jobsonline.nl', 'werk.nl',
 ]);
 
-const AGENCY_DOMAIN_RE = /\b(uitzend(bureau|krachten?|er)?|werving(-en-)?selectie|detacher(ing)?|headhunt(er|ing)?|payroll|recruitment(bureau|agency)?|personeels(bureau|diensten|advies)?|flexwerk|staffing|interim(bureau|management)?|arbeidsbemiddeling|baancoach|jobcoach|careercoach|talentpool|placementbureau|horeca-?job|vacature|vacatures|jobs?|jobboard|werkenbij[a-z0-9-]*)\b/i;
+const INTERMEDIARY_DOMAIN_RE = /\b(uitzend(bureau|krachten?|er)?|werving(-en-)?selectie|detacher(ing)?|headhunt(er|ing)?|payroll|recruitment(bureau|agency)?|personeels(bureau|diensten|advies)?|flexwerk|staffing|interim(bureau|management)?|arbeidsbemiddeling|baancoach|jobcoach|careercoach|talentpool|placementbureau)\b/i;
+const JOBBOARD_DOMAIN_RE = /\b(horeca-?job|vacature|vacatures|jobs?|jobboard|werkenbij[a-z0-9-]*|jobbird|jooble|indeed|monster|stepstone|bijbaan|studentjob|werk\.nl)\b/i;
 
 const RESULT_SELECTORS = [
   'a[data-testid="result-title-a"]',
@@ -58,6 +56,25 @@ const LAUNCH_ARGS = [
   '--window-size=1280,800',
 ];
 
+function envList(name) {
+  return String(process.env[name] ?? '')
+    .split(/\s+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function launchArgs() {
+  return [...LAUNCH_ARGS, ...envList('PUPPETEER_EXTRA_ARGS')];
+}
+
+function headlessMode() {
+  const value = String(process.env.PUPPETEER_HEADLESS ?? 'true').toLowerCase();
+  if (value === 'false') return false;
+  if (value === 'shell') return 'shell';
+  if (value === 'new') return 'new';
+  return true;
+}
+
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -71,13 +88,20 @@ function extractDomain(url) {
   }
 }
 
-function isNoiseDomain(url) {
+function excludedKeywords(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim().toLowerCase()).filter(Boolean);
+  return String(value ?? '').split(/[\n,;]/).map((v) => v.trim().toLowerCase()).filter(Boolean);
+}
+
+function isNoiseDomain(url, { allowJobBoards = true, excludeIntermediaries = true, excludedNameKeywords = [] } = {}) {
   const d = extractDomain(url);
   if (!d) return true;
   for (const noise of NOISE_DOMAINS) {
     if (d === noise || d.endsWith(`.${noise}`)) return true;
   }
-  if (AGENCY_DOMAIN_RE.test(d)) return true;
+  if (excludeIntermediaries && INTERMEDIARY_DOMAIN_RE.test(d)) return true;
+  if (!allowJobBoards && JOBBOARD_DOMAIN_RE.test(d)) return true;
+  if (excludedKeywords(excludedNameKeywords).some((kw) => d.toLowerCase().includes(kw))) return true;
   return false;
 }
 
@@ -96,12 +120,12 @@ function resolveDDGRedirect(href) {
   }
 }
 
-function filterURLs(hrefs) {
+function filterURLs(hrefs, filterOptions = {}) {
   const seen = new Set();
   const out = [];
   for (const raw of hrefs) {
     const href = resolveDDGRedirect(raw);
-    if (!href || isNoiseDomain(href)) continue;
+    if (!href || isNoiseDomain(href, filterOptions)) continue;
     try {
       const url = new URL(href);
       if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
@@ -200,12 +224,24 @@ class BrowserManager {
   }
 
   async _launch() {
+    const browserWsEndpoint = process.env.PUPPETEER_BROWSER_WS_ENDPOINT;
     const browserlessToken = process.env.BROWSERLESS_TOKEN;
-    const browser = browserlessToken
+    const chromeExecutablePath =
+      process.env.PUPPETEER_EXECUTABLE_PATH ||
+      process.env.CHROME_EXECUTABLE_PATH ||
+      process.env.GOOGLE_CHROME_BIN;
+
+    const browser = browserWsEndpoint
+      ? await puppeteer.connect({ browserWSEndpoint: browserWsEndpoint })
+      : browserlessToken
       ? await puppeteer.connect({
           browserWSEndpoint: `wss://chrome.browserless.io?token=${browserlessToken}`,
         })
-      : await puppeteer.launch({ headless: true, args: LAUNCH_ARGS });
+      : await puppeteer.launch({
+          headless: headlessMode(),
+          args: launchArgs(),
+          ...(chromeExecutablePath ? { executablePath: chromeExecutablePath } : {}),
+        });
 
     browser.on('disconnected', () => {
       console.warn('[Puppeteer] Browser disconnected, will relaunch on next use');
@@ -306,13 +342,13 @@ async function waitForResults(page) {
   return null;
 }
 
-async function extractURLs(page, maxResults) {
+async function extractURLs(page, maxResults, filterOptions = {}) {
   for (const selector of RESULT_SELECTORS) {
     try {
       const hrefs = await page.$$eval(selector, (els) =>
         els.map((el) => el.href).filter(Boolean)
       );
-      const filtered = filterURLs(hrefs);
+      const filtered = filterURLs(hrefs, filterOptions);
       if (filtered.length > 0) return filtered.slice(0, maxResults);
     } catch {}
   }
@@ -321,7 +357,7 @@ async function extractURLs(page, maxResults) {
     const allHrefs = await page.$$eval('a[href]', (els) =>
       els.map((el) => el.href).filter((h) => h.startsWith('http'))
     );
-    return filterURLs(allHrefs).slice(0, maxResults);
+    return filterURLs(allHrefs, filterOptions).slice(0, maxResults);
   } catch {
     return [];
   }
@@ -342,6 +378,7 @@ async function searchWithPuppeteer(query, {
   onProgress,
   retryCount = 0,
   isStopped = () => false,
+  filterOptions = {},
 } = {}) {
   let page;
   try {
@@ -370,7 +407,7 @@ async function searchWithPuppeteer(query, {
         browserManager.releasePage(page);
         page = null;
         await sleep(delay);
-        return searchWithPuppeteer(query, { maxResults, onProgress, retryCount: retryCount + 1, isStopped });
+        return searchWithPuppeteer(query, { maxResults, onProgress, retryCount: retryCount + 1, isStopped, filterOptions });
       }
 
       onProgress?.({ query, resultsFound: 0, blocked: true, source: 'puppeteer' });
@@ -383,7 +420,7 @@ async function searchWithPuppeteer(query, {
 
     if (isStopped()) return { urls: [], blocked: false, source: 'puppeteer' };
 
-    const urls = await extractURLs(page, maxResults);
+    const urls = await extractURLs(page, maxResults, filterOptions);
 
     browserManager.recordSuccess();
     onProgress?.({ query, resultsFound: urls.length, blocked: false, source: 'puppeteer' });

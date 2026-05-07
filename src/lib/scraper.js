@@ -27,26 +27,18 @@ const NOISE_DOMAINS = new Set([
   'kompass.com', 'gamma.nl', 'makro.nl', 'staples.nl', 'lyreco.com', 'bidfood.nl',
   'merkandi.nl', 'google.com', 'google.nl', 'google.de', 'google.be',
   'duckduckgo.com', 'bing.com', 'yahoo.com', 'yelp.com', 'trustpilot.com',
-  'kvk.nl', 'glassdoor.com', 'indeed.com', 'reddit.com', 'pinterest.com',
-  'monsterboard.nl', 'nationale-vacaturebank.nl', 'jobbird.com', 'werkzoeken.nl',
-  'careernet.nl', 'intermediair.nl', 'werken.nl', 'vacatures.nl', 'jobrapido.com',
-  'jooble.org', 'totaljobs.com', 'jobs.nl', 'jobtiger.nl', 'uitzendbureau.nl',
-  'tempo-team.nl', 'randstad.nl', 'manpower.nl', 'adecco.nl', 'yacht.nl',
-  'undutchables.nl', 'pagegroup.nl', 'michaelpage.nl', 'heidrick.com',
-  'stepstone.de', 'xing.com', 'monster.de', 'jobware.de', 'stepstone.be',
+  'kvk.nl', 'glassdoor.com', 'reddit.com', 'pinterest.com',
   'worldwidejanitor.com', 'hillyard.com', 'zogics.com', 'wholesalecleaning.co.uk',
   'shell.nl', 'ikea.com', 'booking.com', 'tripadvisor.com',
   'bol.com', 'coolblue.nl', 'wehkamp.nl',
   'substack.com', 'medium.com', 'wordpress.com', 'wix.com', 'squarespace.com',
   'apple.com', 'microsoft.com', 'play.google.com',
   'github.com', 'stackoverflow.com', 'npmjs.com',
-  'horeca-job.nl', 'horecajob.nl', 'nationalehorecagids.nl', 'werkenbijappel.nl',
-  'werkenbijvitam.nl', 'werkenbij.nl', 'bijbaan.nl', 'studentjob.nl',
-  'youngcapital.nl', 'jobalert.nl', 'jobsonline.nl', 'werk.nl',
 ]);
 
 // Domain-level agency filter — blocks domains that are clearly intermediaries
-const AGENCY_DOMAIN_RE = /\b(uitzend(bureau|krachten?|er)?|werving(-en-)?selectie|detacher(ing)?|headhunt(er|ing)?|payroll|recruitment(bureau|agency)?|personeels(bureau|diensten|advies)?|flexwerk|staffing|interim(bureau|management)?|arbeidsbemiddeling|baancoach|jobcoach|careercoach|talentpool|placementbureau|horeca-?job|vacature|vacatures|jobs?|jobboard|werkenbij[a-z0-9-]*)\b/i;
+const INTERMEDIARY_DOMAIN_RE = /\b(uitzend(bureau|krachten?|er)?|werving(-en-)?selectie|detacher(ing)?|headhunt(er|ing)?|payroll|recruitment(bureau|agency)?|personeels(bureau|diensten|advies)?|flexwerk|staffing|interim(bureau|management)?|arbeidsbemiddeling|baancoach|jobcoach|careercoach|talentpool|placementbureau)\b/i;
+const JOBBOARD_DOMAIN_RE = /\b(horeca-?job|vacature|vacatures|jobs?|jobboard|werkenbij[a-z0-9-]*|jobbird|jooble|indeed|monster|stepstone|bijbaan|studentjob|werk\.nl)\b/i;
 
 const TLD_WHITELIST = new Set([
   '.nl', '.be', '.de', '.com', '.eu', '.net', '.org', '.biz', '.info',
@@ -70,22 +62,38 @@ function extractDomain(url) {
   }
 }
 
-function isNoiseDomain(domain) {
+function excludedKeywords(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim().toLowerCase()).filter(Boolean);
+  return String(value ?? '').split(/[\n,;]/).map((v) => v.trim().toLowerCase()).filter(Boolean);
+}
+
+function hasExcludedKeyword(text, keywords) {
+  const lower = String(text ?? '').toLowerCase();
+  return keywords.some((kw) => lower.includes(kw));
+}
+
+function isNoiseDomain(domain, { allowJobBoards = true, excludeIntermediaries = true, excludedNameKeywords = [] } = {}) {
   if (!domain) return true;
   if (NOISE_DOMAINS.has(domain)) return true;
   for (const noise of NOISE_DOMAINS) {
     if (domain.endsWith(`.${noise}`) || domain === noise) return true;
   }
-  if (AGENCY_DOMAIN_RE.test(domain)) return true;
+  if (excludeIntermediaries && INTERMEDIARY_DOMAIN_RE.test(domain)) return true;
+  if (!allowJobBoards && JOBBOARD_DOMAIN_RE.test(domain)) return true;
+  if (hasExcludedKeyword(domain, excludedKeywords(excludedNameKeywords))) return true;
   return false;
 }
 
-function isLikelyVacancyPortal({ domain, companyName = '', description = '' }) {
+function shouldSkipCompany({ domain, companyName = '', description = '' }, options = {}) {
+  const {
+    allowJobBoards = true,
+    excludeIntermediaries = true,
+    excludedNameKeywords = [],
+  } = options;
   const combined = `${domain} ${companyName} ${description}`.toLowerCase();
-  return (
-    AGENCY_DOMAIN_RE.test(combined) ||
-    /\b(vacaturebank|jobboard|banensite|alle vacatures|zoek vacatures|vacatures in|werken bij [a-z]+)\b/i.test(combined)
-  );
+  if (excludeIntermediaries && INTERMEDIARY_DOMAIN_RE.test(combined)) return true;
+  if (!allowJobBoards && (JOBBOARD_DOMAIN_RE.test(combined) || /\b(vacaturebank|jobboard|banensite|alle vacatures|zoek vacatures|vacatures in|werken bij [a-z]+)\b/i.test(combined))) return true;
+  return hasExcludedKeyword(combined, excludedKeywords(excludedNameKeywords));
 }
 
 function hasSupportedTLD(url) {
@@ -127,20 +135,20 @@ class ConcurrencyLimiter {
   }
 }
 
-async function searchDDG(query, { maxResults = 15, usePuppeteer = true, onProgress, isStopped } = {}) {
+async function searchDDG(query, { maxResults = 15, usePuppeteer = true, onProgress, isStopped, filterOptions = {} } = {}) {
   if (usePuppeteer) {
     try {
-      const result = await searchWithPuppeteer(query, { maxResults, onProgress, isStopped });
+      const result = await searchWithPuppeteer(query, { maxResults, onProgress, isStopped, filterOptions });
       if (result.urls.length > 0 || result.blocked) return result.urls;
     } catch (err) {
       console.warn(`[Search] Puppeteer error for "${query}": ${err.message} — falling back to HTTP`);
     }
   }
 
-  return searchDuckDuckGoHTTP(query, maxResults);
+  return searchDuckDuckGoHTTP(query, maxResults, filterOptions);
 }
 
-async function searchDuckDuckGoHTTP(query, maxResults = 15) {
+async function searchDuckDuckGoHTTP(query, maxResults = 15, filterOptions = {}) {
   try {
     const response = await axios.post(
       'https://html.duckduckgo.com/html/',
@@ -175,6 +183,10 @@ async function searchDuckDuckGoHTTP(query, maxResults = 15) {
 
     return [...new Set(urls)]
       .filter((u) => hasSupportedTLD(u))
+      .filter((u) => {
+        const domain = extractDomain(u);
+        return domain && !isNoiseDomain(domain, filterOptions);
+      })
       .slice(0, maxResults);
   } catch (err) {
     if (err.response?.status === 429) await sleep(30_000);
@@ -328,9 +340,9 @@ function findContactLinks($, baseUrl) {
   return [...new Set(links)].slice(0, 2);
 }
 
-async function scrapeSite(url, { emailValidation = true, deepValidation = false, analyzer = ERPAnalyzer } = {}) {
+async function scrapeSite(url, { emailValidation = true, deepValidation = false, analyzer = ERPAnalyzer, filterOptions = {} } = {}) {
   const domain = extractDomain(url);
-  if (!domain || isNoiseDomain(domain) || cache.isVisited(domain)) return null;
+  if (!domain || isNoiseDomain(domain, filterOptions) || cache.isVisited(domain)) return null;
 
   cache.markVisited(domain);
 
@@ -358,7 +370,7 @@ async function scrapeSite(url, { emailValidation = true, deepValidation = false,
   const emails = rankEmails(extractEmails(allText), domain);
   const phone = extractPhone(allText);
   const { companyName, description, address, city } = extractCompanyInfo($homepage, url);
-  if (isLikelyVacancyPortal({ domain, companyName, description })) return null;
+  if (shouldSkipCompany({ domain, companyName, description }, filterOptions)) return null;
 
   const { extraText = '', extraData = {} } = await (analyzer.fetchExtra?.(url, fetchPage) ?? Promise.resolve({ extraText: '', extraData: {} }));
   if (extraText) allText += ' ' + extraText;
@@ -421,6 +433,9 @@ class ScraperEngine {
     deepValidation = false,
     usePuppeteer = true,
     searchResultsPerQuery = 20,
+    allowJobBoards = true,
+    excludeIntermediaries = true,
+    excludedNameKeywords = [],
     analyzer = ERPAnalyzer,
   } = {}) {
     this.concurrency = concurrency;
@@ -429,6 +444,7 @@ class ScraperEngine {
     this.deepValidation = deepValidation;
     this.usePuppeteer = usePuppeteer;
     this.searchResultsPerQuery = searchResultsPerQuery;
+    this.filterOptions = { allowJobBoards, excludeIntermediaries, excludedNameKeywords };
     this.analyzer = analyzer;
     this.limiter = new ConcurrencyLimiter(concurrency);
     this.stopRequested = false;
@@ -451,13 +467,14 @@ class ScraperEngine {
       usePuppeteer: this.usePuppeteer,
       onProgress: (info) => onSearchProgress?.(info),
       isStopped: () => this.stopRequested,
+      filterOptions: this.filterOptions,
     });
 
     onLog?.('info', `  → ${urls.length} URLs gevonden`);
 
     const newUrls = urls.filter((u) => {
       const d = extractDomain(u);
-      return d && !this.processedDomains.has(d) && !isNoiseDomain(d);
+      return d && !this.processedDomains.has(d) && !isNoiseDomain(d, this.filterOptions);
     });
 
     onDomainFound?.(newUrls.length);
@@ -479,6 +496,7 @@ class ScraperEngine {
             emailValidation: this.emailValidation,
             deepValidation: this.deepValidation,
             analyzer: this.analyzer,
+            filterOptions: this.filterOptions,
           });
 
           if (!result) {

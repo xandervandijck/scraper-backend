@@ -231,6 +231,9 @@ async function startScrapeJob({ workspaceId, listId, config }) {
     deepValidation: config.deepValidation ?? false,
     usePuppeteer: config.usePuppeteer ?? true,
     searchResultsPerQuery: config.searchResultsPerQuery ?? 30,
+    allowJobBoards: config.allowJobBoards ?? true,
+    excludeIntermediaries: config.excludeIntermediaries ?? true,
+    excludedNameKeywords: config.excludedNameKeywords ?? [],
     analyzer,
   });
 
