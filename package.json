@@ -17,7 +17,6 @@
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.30.3",
     "styled-components": "^6.0.0",
-    "better-sqlite3": "9.4.3",
     "mysql2": "3.11.5",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
