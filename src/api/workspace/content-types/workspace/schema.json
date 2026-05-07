@@ -1,0 +1,22 @@
+{
+  "kind": "collectionType",
+  "collectionName": "workspaces",
+  "info": {
+    "singularName": "workspace",
+    "pluralName": "workspaces",
+    "displayName": "Workspace"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "user_id": {
+      "type": "string",
+      "required": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

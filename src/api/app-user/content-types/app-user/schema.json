@@ -1,0 +1,23 @@
+{
+  "kind": "collectionType",
+  "collectionName": "app_users",
+  "info": {
+    "singularName": "app-user",
+    "pluralName": "app-users",
+    "displayName": "App User"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "email": {
+      "type": "email",
+      "required": true,
+      "unique": true
+    },
+    "password_hash": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

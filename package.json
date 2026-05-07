@@ -1,27 +1,38 @@
 {
-  "name": "erp-lead-backend",
+  "name": "superscraper-cms",
   "version": "1.0.0",
-  "description": "ERP Lead Generation Engine — Node.js Backend",
-  "type": "module",
-  "main": "server.js",
+  "private": true,
+  "description": "Strapi CMS backend for Superscraper data storage",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --env-file=.env --watch server.js"
+    "develop": "strapi develop",
+    "start": "strapi start",
+    "build": "strapi build",
+    "postinstall": "node scripts/patch-lodash-esm.js"
   },
   "dependencies": {
+    "@strapi/strapi": "5.45.0",
+    "@strapi/plugin-users-permissions": "5.45.0",
+    "@strapi/plugin-cloud": "5.45.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.30.3",
+    "styled-components": "^6.0.0",
+    "better-sqlite3": "9.4.3",
+    "mysql2": "3.11.5",
     "axios": "^1.7.7",
-    "cheerio": "^1.0.0",
-    "cors": "^2.8.5",
-    "csv-writer": "^1.6.0",
-    "express": "^4.19.2",
     "bcryptjs": "^2.4.3",
+    "cheerio": "^1.0.0",
+    "csv-writer": "^1.6.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.13.1",
     "puppeteer": "^22.15.0",
-    "ws": "^8.18.0",
     "xlsx": "^0.18.5"
   },
+  "devDependencies": {},
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  },
+  "strapi": {
+    "uuid": "6c8d5105-cf0f-46b0-ad2b-cd12df783962"
   }
 }

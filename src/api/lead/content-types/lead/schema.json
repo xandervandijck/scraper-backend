@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "leads",
+  "info": {
+    "singularName": "lead",
+    "pluralName": "leads",
+    "displayName": "Lead"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "workspace_id": { "type": "string", "required": true },
+    "list_id": { "type": "string", "required": true },
+    "company_name": { "type": "string" },
+    "domain": { "type": "string", "required": true },
+    "website": { "type": "string" },
+    "email": { "type": "email" },
+    "email_valid": { "type": "boolean" },
+    "email_validation_score": { "type": "integer" },
+    "email_validation_reason": { "type": "string" },
+    "score": { "type": "integer" },
+    "erp_score": { "type": "integer" },
+    "erp_breakdown": { "type": "json" },
+    "use_case": {
+      "type": "enumeration",
+      "enum": ["erp", "recruitment", "prospecting"],
+      "default": "erp"
+    },
+    "analysis_data": { "type": "json" },
+    "sector": { "type": "string" },
+    "country": { "type": "string" },
+    "city": { "type": "string" },
+    "phone": { "type": "string" },
+    "address": { "type": "text" },
+    "description": { "type": "text" },
+    "source": { "type": "string", "default": "puppeteer" },
+    "category": { "type": "string" },
+    "unique_identifier": { "type": "string" },
+    "all_emails": { "type": "json" },
+    "has_vacancies": { "type": "boolean" },
+    "job_titles": { "type": "json" },
+    "vacancy_links": { "type": "json" },
+    "signals": { "type": "json" },
+    "lead_status": { "type": "string", "default": "nieuw" },
+    "assessment": { "type": "string" },
+    "assessment_reason": { "type": "text" }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "kind": "collectionType",
+  "collectionName": "lead_lists",
+  "info": {
+    "singularName": "lead-list",
+    "pluralName": "lead-lists",
+    "displayName": "Lead List"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "workspace_id": {
+      "type": "string",
+      "required": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "target_leads": {
+      "type": "integer",
+      "default": 100
+    },
+    "use_case": {
+      "type": "enumeration",
+      "enum": ["erp", "recruitment", "prospecting"],
+      "default": "erp"
+    }
+  }
+}

@@ -62,6 +62,10 @@ jspm_packages/
 # Nuxt.js build output
 .nuxt/
 dist/
+strapi/build/
+strapi/.tmp/
+strapi/dist/
+strapi/.strapi-updater.json
 
 # Gatsby files
 .cache/

@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "scrape_sessions",
+  "info": {
+    "singularName": "scrape-session",
+    "pluralName": "scrape-sessions",
+    "displayName": "Scrape Session"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "workspace_id": { "type": "string", "required": true },
+    "list_id": { "type": "string", "required": true },
+    "status": {
+      "type": "enumeration",
+      "enum": ["running", "done", "stopped", "error"],
+      "default": "running"
+    },
+    "config": { "type": "json" },
+    "queries_used": { "type": "json" },
+    "leads_found": { "type": "integer", "default": 0 },
+    "duplicates_skipped": { "type": "integer", "default": 0 },
+    "errors_count": { "type": "integer", "default": 0 },
+    "finished_at": { "type": "datetime" }
+  }
+}
