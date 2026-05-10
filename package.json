@@ -28,6 +28,10 @@
     "styled-components": "^6.0.0",
     "xlsx": "^0.18.5"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.60.3",
+    "@rollup/rollup-linux-x64-musl": "4.60.3"
+  },
   "engines": {
     "node": "22.x",
     "npm": "10.x"
