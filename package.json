@@ -7,7 +7,8 @@
     "develop": "strapi develop",
     "start": "strapi start",
     "build": "strapi build",
-    "postinstall": "node scripts/patch-lodash-esm.js"
+    "postinstall": "node scripts/patch-lodash-esm.js",
+    "heroku-prebuild": "rm -f package-lock.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
@@ -27,9 +28,6 @@
     "react-router-dom": "^6.30.3",
     "styled-components": "^6.0.0",
     "xlsx": "^0.18.5"
-  },
-  "optionalDependencies": {
-    "@swc/core-linux-x64-gnu": "1.15.33"
   },
   "engines": {
     "node": "22.x",
