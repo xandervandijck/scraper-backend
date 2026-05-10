@@ -7,8 +7,7 @@
     "develop": "strapi develop",
     "start": "strapi start",
     "build": "strapi build",
-    "postinstall": "node scripts/patch-lodash-esm.js",
-    "heroku-prebuild": "rm -f package-lock.json"
+    "postinstall": "node scripts/patch-lodash-esm.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
