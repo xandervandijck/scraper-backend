@@ -1,0 +1,31 @@
+{
+  "NL": [
+    "Amsterdam", "Rotterdam", "Utrecht", "Den Haag", "Eindhoven",
+    "Tilburg", "Groningen", "Almere", "Breda", "Nijmegen",
+    "Enschede", "Haarlem", "Arnhem", "Zaanstad", "Amersfoort",
+    "Apeldoorn", "Den Bosch", "Maastricht", "Leiden", "Dordrecht",
+    "Zoetermeer", "Zwolle", "Deventer", "Delft", "Alkmaar",
+    "Venlo", "Leeuwarden", "Oss", "Roosendaal", "Heerlen",
+    "Emmen", "Helmond", "Hengelo", "Gouda", "Purmerend",
+    "Lelystad", "Ede", "Alphen aan den Rijn", "Vlaardingen", "Spijkenisse",
+    "Sittard", "Hilversum", "Amstelveen", "Middelburg", "Capelle aan den IJssel"
+  ],
+  "BE": [
+    "Brussel", "Antwerpen", "Gent", "Brugge", "Luik",
+    "Namur", "Leuven", "Bergen", "Mechelen", "Aalst",
+    "Hasselt", "Kortrijk", "Sint-Niklaas", "Genk", "Charleroi",
+    "Tournai", "Oostende", "Roeselare", "Turnhout", "Verviers",
+    "Seraing", "Dendermonde", "Sint-Truiden", "Waregem", "Ieper"
+  ],
+  "DE": [
+    "Berlin", "Hamburg", "München", "Köln", "Frankfurt",
+    "Stuttgart", "Düsseldorf", "Leipzig", "Dortmund", "Essen",
+    "Bremen", "Dresden", "Hannover", "Nürnberg", "Duisburg",
+    "Bochum", "Wuppertal", "Bielefeld", "Bonn", "Münster",
+    "Karlsruhe", "Mannheim", "Augsburg", "Wiesbaden", "Gelsenkirchen",
+    "Mönchengladbach", "Braunschweig", "Chemnitz", "Kiel", "Aachen",
+    "Halle", "Magdeburg", "Freiburg", "Krefeld", "Lübeck",
+    "Erfurt", "Rostock", "Mainz", "Kassel", "Saarbrücken",
+    "Oldenburg", "Osnabrück", "Leverkusen", "Potsdam", "Oberhausen"
+  ]
+}

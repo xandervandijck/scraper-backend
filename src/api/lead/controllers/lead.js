@@ -1,9 +1,7 @@
 'use strict';
 
 const { factories } = require('@strapi/strapi');
-const fs = require('fs');
-const path = require('path');
-const { exportCSV, exportXLSX } = require('../../../lib/exporter.js');
+const { exportCSVBuffer, exportXLSXBuffer, uploadToSpaces } = require('../../../lib/exporter.js');
 const { requireUser } = require('../../../utils/appAuth.js');
 const { findMany, requireWorkspace } = require('../../../utils/store.js');
 
@@ -96,11 +94,23 @@ module.exports = factories.createCoreController('api::lead.lead', () => ({
     if (!rows.length) return ctx.notFound('No leads to export');
 
     const filename = `leads_${Date.now()}.${format}`;
-    const filepath = format === 'csv'
-      ? await exportCSV(rows.map(toExportLead), filename)
-      : exportXLSX(rows.map(toExportLead), filename);
+    const contentType = format === 'xlsx'
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'text/csv; charset=utf-8';
 
-    ctx.attachment(`superscraper_leads.${format}`);
-    ctx.body = fs.createReadStream(path.resolve(filepath));
+    const buffer = format === 'csv'
+      ? exportCSVBuffer(rows.map(toExportLead))
+      : exportXLSXBuffer(rows.map(toExportLead));
+
+    try {
+      const url = await uploadToSpaces(buffer, filename, contentType);
+      return ctx.send({ url, filename: `superscraper_leads.${format}` });
+    } catch (err) {
+      strapi.log.error(`[Export] DO Spaces upload mislukt: ${err.message}`);
+      // Fallback: stuur buffer direct terug zonder schijf te raken
+      ctx.set('Content-Disposition', `attachment; filename="superscraper_leads.${format}"`);
+      ctx.set('Content-Type', contentType);
+      ctx.body = buffer;
+    }
   },
 }));

@@ -4,7 +4,7 @@
  * ERP Analyzer — adapter wrapping the analyzeERPFit function.
  */
 const { analyzeERPFit } = require('../erpAnalyzer.js');
-const { generateQueries } = require('../queryGenerator.js');
+const { generateQueries, generateExhaustiveQueries } = require('../queryGenerator.js');
 
 const ERPAnalyzer = {
   /** @returns {{ score: number, analysis_data: object }} */
@@ -22,6 +22,13 @@ const ERPAnalyzer = {
 
   generateQueries(config) {
     return generateQueries({
+      sectorKeys: config.sectorKeys ?? [],
+      countryKeys: config.countryKeys ?? [],
+    });
+  },
+
+  generateExhaustiveQueries(config) {
+    return generateExhaustiveQueries({
       sectorKeys: config.sectorKeys ?? [],
       countryKeys: config.countryKeys ?? [],
     });

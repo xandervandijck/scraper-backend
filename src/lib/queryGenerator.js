@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SECTORS_PATH = path.join(__dirname, 'config', 'sectors.json');
+const CITIES_PATH = path.join(__dirname, 'config', 'cities.json');
 
 const COUNTRIES = {
   NL: { label: 'Nederland', suffix: 'Nederland site:.nl' },
@@ -30,6 +31,16 @@ function loadSectors() {
 /** Write sectors to disk */
 function saveSectors(sectors) {
   fs.writeFileSync(SECTORS_PATH, JSON.stringify(sectors, null, 2), 'utf-8');
+}
+
+/** Read cities from disk */
+function loadCities() {
+  try {
+    const raw = fs.readFileSync(CITIES_PATH, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return { NL: [], BE: [], DE: [] };
+  }
 }
 
 /**
@@ -60,6 +71,7 @@ function generateQueries({
       for (const baseQuery of sector.queries) {
         specs.push({
           query: `${baseQuery} ${country.suffix}`,
+          keywords: baseQuery,
           sector: sector.label,
           country: country.label,
           sectorKey: sector.key,
@@ -71,4 +83,47 @@ function generateQueries({
   return specs;
 }
 
-module.exports = { COUNTRIES, loadSectors, saveSectors, generateQueries };
+/**
+ * Generates city-level queries for exhaustive coverage of a country.
+ * Instead of one national query, produces one query per major city.
+ */
+function generateExhaustiveQueries({
+  sectorKeys = [],
+  countryKeys = [],
+  sectors: sectorOverride,
+} = {}) {
+  const allSectors = sectorOverride ?? loadSectors();
+  const sectors = sectorKeys.length
+    ? allSectors.filter((s) => sectorKeys.includes(s.key))
+    : allSectors;
+
+  const countries = Object.entries(COUNTRIES).filter(
+    ([k]) => !countryKeys.length || countryKeys.includes(k),
+  );
+
+  const cities = loadCities();
+  const specs = [];
+
+  for (const sector of sectors) {
+    for (const [countryKey, country] of countries) {
+      const tld = countryKey === 'BE' ? 'site:.be' : countryKey === 'DE' ? 'site:.de' : 'site:.nl';
+      const countryCities = cities[countryKey] ?? [];
+      for (const city of countryCities) {
+        for (const baseQuery of sector.queries) {
+          specs.push({
+            query: `${baseQuery} ${city} ${tld}`,
+            keywords: baseQuery,
+            sector: sector.label,
+            country: country.label,
+            sectorKey: sector.key,
+            countryKey,
+            city,
+          });
+        }
+      }
+    }
+  }
+  return specs;
+}
+
+module.exports = { COUNTRIES, loadSectors, saveSectors, loadCities, generateQueries, generateExhaustiveQueries };

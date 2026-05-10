@@ -10,23 +10,24 @@
     "postinstall": "node scripts/patch-lodash-esm.js"
   },
   "dependencies": {
-    "@strapi/strapi": "5.45.0",
-    "@strapi/plugin-users-permissions": "5.45.0",
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@strapi/plugin-cloud": "5.45.0",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "react-router-dom": "^6.30.3",
-    "styled-components": "^6.0.0",
-    "mysql2": "3.11.5",
+    "@strapi/plugin-users-permissions": "5.45.0",
+    "@strapi/provider-upload-aws-s3": "^5.45.0",
+    "@strapi/strapi": "5.45.0",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",
     "csv-writer": "^1.6.0",
     "jsonwebtoken": "^9.0.2",
+    "mysql2": "3.11.5",
     "puppeteer": "^22.15.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.30.3",
+    "styled-components": "^6.0.0",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {},
   "engines": {
     "node": "22.x",
     "npm": "10.x"

@@ -4,6 +4,7 @@ const { ScraperEngine } = require('../lib/scraper.js');
 const { getAnalyzer } = require('../lib/analyzers/analyzerFactory.js');
 const { createOne, findMany, findOne, requireList, updateOne } = require('./store.js');
 const wsServer = require('./wsServer.js');
+const { loadCities } = require('../lib/queryGenerator.js');
 
 const activeJobs = new Map();
 
@@ -183,6 +184,41 @@ function buildProspectingContinuationQueries(config, round) {
   }));
 }
 
+function buildCityBasedContinuationQueries(baseQueries, cityRound) {
+  const cities = loadCities();
+
+  // Group base queries by country key to match correct city list
+  const byCountry = {};
+  for (const q of baseQueries) {
+    if (!byCountry[q.countryKey]) byCountry[q.countryKey] = [];
+    byCountry[q.countryKey].push(q);
+  }
+
+  const BATCH = 8; // cities processed per round
+  const results = [];
+
+  for (const [countryKey, countryQueries] of Object.entries(byCountry)) {
+    const countryCities = cities[countryKey] ?? [];
+    if (!countryCities.length) continue;
+    const tld = countryKey === 'BE' ? 'site:.be' : countryKey === 'DE' ? 'site:.de' : 'site:.nl';
+    const startIdx = ((cityRound - 1) * BATCH) % countryCities.length;
+    const batch = countryCities.slice(startIdx, startIdx + BATCH);
+
+    for (const city of batch) {
+      for (const querySpec of countryQueries) {
+        const keyword = querySpec.keywords ?? querySpec.query;
+        results.push({
+          ...querySpec,
+          query: `${keyword} ${city} ${tld}`,
+          city,
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
 function buildContinuationQueries({ config, useCase, baseQueries, round }) {
   if (useCase === 'prospecting') {
     return buildProspectingContinuationQueries(config, round);
@@ -195,11 +231,18 @@ function buildContinuationQueries({ config, useCase, baseQueries, round }) {
     'over ons contact',
     'info mail',
   ];
-  const modifier = modifiers[(round - 1) % modifiers.length];
-  return baseQueries.map((querySpec) => ({
-    ...querySpec,
-    query: `${querySpec.query} ${modifier}`,
-  }));
+
+  // First 5 rounds: modifier-based variations
+  if (round <= modifiers.length) {
+    const modifier = modifiers[round - 1];
+    return baseQueries.map((querySpec) => ({
+      ...querySpec,
+      query: `${querySpec.query} ${modifier}`,
+    }));
+  }
+
+  // After modifiers: switch to city-based queries for broad geographic coverage
+  return buildCityBasedContinuationQueries(baseQueries, round - modifiers.length);
 }
 
 async function startScrapeJob({ workspaceId, listId, config }) {
@@ -210,7 +253,9 @@ async function startScrapeJob({ workspaceId, listId, config }) {
   const list = await requireList(listId, workspaceId);
   const useCase = list.use_case ?? 'erp';
   const analyzer = getAnalyzer(useCase);
-  const queries = analyzer.generateQueries(config);
+  const queries = config.exhaustiveMode
+    ? analyzer.generateExhaustiveQueries(config)
+    : analyzer.generateQueries(config);
   if (!queries.length) throw new Error('No queries generated');
 
   const session = await createOne('session', {
@@ -240,7 +285,11 @@ async function startScrapeJob({ workspaceId, listId, config }) {
   const counters = { leadsFound: 0, duplicatesSkipped: 0, errorsCount: 0 };
   activeJobs.set(workspaceId, { engine, sessionId: session.id, counters });
 
-  wsServer.broadcast(workspaceId, 'job_started', { sessionId: session.id, queries: queries.length });
+  wsServer.broadcast(workspaceId, 'job_started', {
+    sessionId: session.id,
+    queries: queries.length,
+    exhaustiveMode: config.exhaustiveMode ?? false,
+  });
 
   runJob({ engine, queries, workspaceId, listId, sessionId: session.id, counters, config, useCase })
     .finally(() => activeJobs.delete(workspaceId));
@@ -262,7 +311,8 @@ async function runJob({ engine, queries, workspaceId, listId, sessionId, counter
   const targetLeads = config.targetLeads ?? 1000;
   const continueUntilTarget = config.continueUntilTarget ?? true;
   const maxQueries = config.maxQueries ?? Math.max(queries.length, targetLeads * 5, 250);
-  const maxStalledQueries = config.maxStalledQueries ?? 50;
+  // Exhaustive mode processes many city queries that may yield 0 results — higher stall tolerance
+  const maxStalledQueries = config.maxStalledQueries ?? (config.exhaustiveMode ? 150 : 50);
   const queryQueue = [...queries];
   const baseQueries = [...queries];
   const allQueriesUsed = [...queries];

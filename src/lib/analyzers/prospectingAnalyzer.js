@@ -223,6 +223,10 @@ const ProspectingAnalyzer = {
   generateQueries(config) {
     return buildQueries(config);
   },
+
+  generateExhaustiveQueries(config) {
+    return buildQueries(config);
+  },
 };
 
 module.exports = ProspectingAnalyzer;

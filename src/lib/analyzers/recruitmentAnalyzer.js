@@ -5,6 +5,7 @@
  */
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { loadCities } = require('../queryGenerator.js');
 
 const VACANCY_PATH_PATTERNS = [
   /\/(vacatures?|vacature|jobs?|careers?|werken-bij|werken_bij|werkenbij|stellenangebote|stellen|karriere|jobangebote|hiring|join-us|join_us|offres-emploi|emploi|werken|meewerken|team|ons-team|word-collega|kom-werken|personeel|medewerkers|open-sollicitatie|solliciteer|openstaande-functies|openstaande-vacatures)[/-]?(\?.*)?$/i,
@@ -393,11 +394,46 @@ const RecruitmentAnalyzer = {
         for (const q of RECRUITMENT_QUERIES[sk]) {
           queries.push({
             query:      `${q} ${suffix} ${tld}`,
+            keywords:   q,
             sector:     sk,
             sectorKey:  sk,
             country:    suffix,
             countryKey: ck,
           });
+        }
+      }
+    }
+    return queries;
+  },
+
+  generateExhaustiveQueries(config) {
+    const COUNTRY_SUFFIX = { NL: 'Nederland', BE: 'België', DE: 'Deutschland' };
+
+    const sectorKeys = config.sectorKeys?.length
+      ? config.sectorKeys.filter((k) => RECRUITMENT_QUERIES[k])
+      : Object.keys(RECRUITMENT_QUERIES);
+
+    const countryKeys = config.countryKeys?.length ? config.countryKeys : ['NL'];
+    const cities = loadCities();
+
+    const queries = [];
+    for (const sk of sectorKeys) {
+      for (const ck of countryKeys) {
+        const suffix = COUNTRY_SUFFIX[ck] ?? ck;
+        const tld    = ck === 'NL' ? 'site:.nl' : ck === 'BE' ? 'site:.be' : 'site:.de';
+        const countryCities = cities[ck] ?? [];
+        for (const city of countryCities) {
+          for (const q of RECRUITMENT_QUERIES[sk]) {
+            queries.push({
+              query:      `${q} ${city} ${tld}`,
+              keywords:   q,
+              sector:     sk,
+              sectorKey:  sk,
+              country:    suffix,
+              countryKey: ck,
+              city,
+            });
+          }
         }
       }
     }

@@ -1,15 +1,14 @@
 'use strict';
 
 /**
- * Exporter — CSV and Excel (xlsx) export for leads.
+ * Exporter — in-memory CSV and Excel (xlsx) generation, uploaded to DigitalOcean Spaces.
+ * Never writes to disk to avoid triggering Strapi's file watcher / nodemon restarts.
  */
 
-const { createObjectCsvWriter } = require('csv-writer');
+const { createObjectCsvStringifier } = require('csv-writer');
 const xlsx = require('xlsx');
 const path = require('path');
-const fs = require('fs');
-
-const OUTPUT_DIR = './output';
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const COLUMNS = [
   { id: 'companyName', title: 'Bedrijfsnaam' },
@@ -34,10 +33,6 @@ const COLUMNS = [
   { id: 'uniqueIdentifier', title: 'Unieke ID' },
   { id: 'foundAt', title: 'Gevonden Op' },
 ];
-
-function ensureOutputDir() {
-  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-}
 
 function flattenLead(lead) {
   const analysisData = lead.analysisData ?? lead.analysis_data ?? {};
@@ -72,24 +67,16 @@ function flattenLead(lead) {
   };
 }
 
-async function exportCSV(leads, filename = 'leads.csv') {
-  ensureOutputDir();
-  const filepath = path.join(OUTPUT_DIR, filename);
-
-  const writer = createObjectCsvWriter({
-    path: filepath,
-    header: COLUMNS,
-    encoding: 'utf8',
-  });
-
-  await writer.writeRecords(leads.map(flattenLead));
-  return filepath;
+/** Returns a UTF-8 Buffer of the CSV — no disk I/O. */
+function exportCSVBuffer(leads) {
+  const stringifier = createObjectCsvStringifier({ header: COLUMNS });
+  const header = stringifier.getHeaderString();
+  const records = stringifier.stringifyRecords(leads.map(flattenLead));
+  return Buffer.from('﻿' + header + records, 'utf8'); // BOM for Excel compatibility
 }
 
-function exportXLSX(leads, filename = 'leads.xlsx') {
-  ensureOutputDir();
-  const filepath = path.join(OUTPUT_DIR, filename);
-
+/** Returns a Buffer of the XLSX workbook — no disk I/O. */
+function exportXLSXBuffer(leads) {
   const rows = leads.map(flattenLead);
   const ws = xlsx.utils.json_to_sheet(rows, {
     header: COLUMNS.map((c) => c.id),
@@ -121,8 +108,40 @@ function exportXLSX(leads, filename = 'leads.xlsx') {
 
   const wb = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(wb, ws, 'Leads');
-  xlsx.writeFile(wb, filepath);
-  return filepath;
+  return xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
 }
 
-module.exports = { exportCSV, exportXLSX };
+function buildS3Client() {
+  return new S3Client({
+    region: process.env.DO_SPACE_REGION || 'fra1',
+    endpoint: process.env.DO_SPACE_ENDPOINT || 'https://fra1.digitaloceanspaces.com',
+    credentials: {
+      accessKeyId: process.env.DO_SPACE_ACCESS_KEY,
+      secretAccessKey: process.env.DO_SPACE_SECRET_KEY,
+    },
+    forcePathStyle: false,
+  });
+}
+
+/**
+ * Uploads a Buffer to DigitalOcean Spaces and returns the public CDN URL.
+ */
+async function uploadToSpaces(buffer, filename, contentType) {
+  const directory = (process.env.DO_SPACE_DIRECTORY ?? '').replace(/\/$/, '');
+  const key = [directory, 'exports', filename].filter(Boolean).join('/');
+
+  const client = buildS3Client();
+  await client.send(new PutObjectCommand({
+    Bucket: process.env.DO_SPACE_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ACL: process.env.DO_SPACE_ACL || 'public-read',
+    ContentDisposition: `attachment; filename="${filename}"`,
+  }));
+
+  const cdnBase = (process.env.DO_SPACE_CDN || `https://${process.env.DO_SPACE_BUCKET}.${process.env.DO_SPACE_REGION}.digitaloceanspaces.com`).replace(/\/$/, '');
+  return `${cdnBase}/${key}`;
+}
+
+module.exports = { exportCSVBuffer, exportXLSXBuffer, uploadToSpaces };
